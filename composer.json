@@ -1,0 +1,14 @@
+{
+    "name": "tinywan/typephp-ext-aes",
+    "description": "AES PHP extension built with TypePHP",
+    "type": "project",
+    "require": {
+        "php": ">=8.4 <8.6"
+    },
+    "require-dev": {
+        "swoole/typephp": "0.6.5"
+    },
+    "config": {
+        "sort-packages": true
+    }
+}

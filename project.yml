@@ -1,0 +1,14 @@
+name: typephp-ext-aes
+
+sources:
+  - src/EncryptionUtil.php
+
+ignore:
+
+output: build/typephp-ext-aes
+mode: ext
+php-version: "8.5"
+cxx-std: c++17
+optimize: 2
+job: 1
+debug: true

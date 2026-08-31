@@ -1,0 +1,174 @@
+name: Build TypePHP extension
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+
+# The workflow only reads repository contents and uploads build artifacts.
+permissions:
+  contents: read
+
+concurrency:
+  group: typephp-extension-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  windows:
+    name: Windows x64 (.dll)
+    runs-on: windows-latest
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      # Composer is used for the project's locked compiler dependencies. The
+      # actual compiler and PHP SDK come from the matching TypePHP release.
+      - name: Install PHP 8.5 and Composer
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.5'
+          tools: composer:v2
+          extensions: dom
+
+      - name: Download the complete TypePHP 0.6.5 Windows SDK
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          New-Item -ItemType Directory -Force -Path .typephp-download | Out-Null
+          gh release download v0.6.5 --repo swoole/typephp --pattern 'tpc_v0.6.5_windows_*.zip' --dir .typephp-download --clobber
+          $archive = Get-ChildItem .typephp-download -Filter '*.zip' | Select-Object -First 1
+          if ($null -eq $archive) { throw 'TypePHP 0.6.5 Windows release archive was not downloaded.' }
+          Expand-Archive -LiteralPath $archive.FullName -DestinationPath .typephp-sdk -Force
+          $sdk = Get-ChildItem .typephp-sdk -Directory | Select-Object -First 1
+          if ($null -eq $sdk) { throw 'The TypePHP archive does not contain an SDK directory.' }
+          "TYPEPHP_HOME=$($sdk.FullName)" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          $sdk.FullName | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+          @(
+            'tpc.exe',
+            'php.exe',
+            'composer.bat',
+            'phpx\\include',
+            'phpx\\lib\\phpx.lib',
+            'phpx.dll',
+            'SDK\\lib\\php8embed.lib'
+          ) | ForEach-Object {
+            $required = Join-Path $sdk.FullName $_
+            if (-not (Test-Path -LiteralPath $required)) { throw "Incomplete TypePHP SDK: missing $required" }
+          }
+
+      - name: Install locked Composer dependencies
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          & "$env:TYPEPHP_HOME\\composer.bat" install --no-interaction --prefer-dist --no-progress
+          if (-not (Test-Path -LiteralPath 'vendor\\autoload.php')) { throw 'Composer did not create vendor/autoload.php.' }
+
+      - name: Build extension with the TypePHP SDK
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\\Installer\\vswhere.exe'
+          $vsRoot = & $vswhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
+          if ([string]::IsNullOrWhiteSpace($vsRoot)) { throw 'Visual C++ build tools were not found on the runner.' }
+          $msvcBin = Get-ChildItem (Join-Path $vsRoot 'VC\\Tools\\MSVC') -Directory |
+            Sort-Object Name -Descending |
+            ForEach-Object { Join-Path $_.FullName 'bin\\Hostx64\\x64' } |
+            Where-Object { Test-Path (Join-Path $_ 'link.exe') } |
+            Select-Object -First 1
+          if ($null -eq $msvcBin) { throw 'MSVC x64 link.exe was not found.' }
+
+          # Put MSVC ahead of Git for Windows, whose link.exe is not the MSVC linker.
+          $env:PHP_HOME = $env:TYPEPHP_HOME
+          $env:PHPX_HOME = Join-Path $env:TYPEPHP_HOME 'phpx'
+          $env:Path = "$msvcBin;$env:TYPEPHP_HOME;$env:Path"
+          Get-Command link.exe | Format-List Source, Version
+          & link.exe /? | Out-Null
+          & "$env:TYPEPHP_HOME\\tpc.exe" .\\project.yml --no-progress --no-color
+          if (-not (Test-Path -LiteralPath 'build\\typephp_ext_aes.dll')) { throw 'Expected DLL was not produced.' }
+
+      - name: Verify Windows extension can load
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          & "$env:TYPEPHP_HOME\\php.exe" -n -d "extension=$PWD\\build\\typephp_ext_aes.dll" -r "var_dump(class_exists('security\\EncryptionUtil'));"
+
+      - name: Upload Windows extension
+        uses: actions/upload-artifact@v4
+        with:
+          name: typephp-ext-aes-windows-x64
+          path: build/typephp_ext_aes.dll
+          if-no-files-found: error
+
+  linux:
+    name: Linux x64 (.so)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Install PHP 8.5 and Composer
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.5'
+          tools: composer:v2
+          extensions: dom
+
+      - name: Install native build prerequisites
+        shell: bash
+        run: |
+          set -euxo pipefail
+          sudo apt-get update
+          sudo apt-get install --yes build-essential cmake pkg-config libgmp-dev libmpfr-dev
+          command -v php-config
+          php --version
+          php-config --version
+
+      - name: Install locked Composer dependencies
+        shell: bash
+        run: |
+          set -euxo pipefail
+          composer install --no-interaction --prefer-dist --no-progress
+          test -f vendor/autoload.php
+
+      - name: Build PHPX for the selected PHP ABI
+        shell: bash
+        run: |
+          set -euxo pipefail
+          php_home="$(php-config --prefix)"
+          test -f "$php_home/include/php/main/php.h"
+          cmake -S vendor/swoole/phpx -B .typephp/phpx-build \
+            -DCMAKE_BUILD_TYPE=Release \
+            -Dphp_dir="$php_home" \
+            -DCMAKE_LIBRARY_OUTPUT_DIRECTORY="$GITHUB_WORKSPACE/vendor/swoole/phpx/lib"
+          cmake --build .typephp/phpx-build --target phpx --parallel 2
+          test -f vendor/swoole/phpx/lib/libphpx.so
+          printf 'PHP_HOME=%s\n' "$php_home" >> "$GITHUB_ENV"
+          printf 'PHPX_HOME=%s/vendor/swoole/phpx\n' "$GITHUB_WORKSPACE" >> "$GITHUB_ENV"
+
+      - name: Build extension with TypePHP 0.6.5
+        shell: bash
+        run: |
+          set -euxo pipefail
+          printf 'Compiler: '; vendor/bin/tpc.php --version
+          vendor/bin/tpc.php project.yml --no-progress --no-color
+          test -f build/typephp_ext_aes.so
+          file build/typephp_ext_aes.so
+
+      - name: Verify Linux extension can load
+        shell: bash
+        run: |
+          set -euxo pipefail
+          php -n -d "extension=$GITHUB_WORKSPACE/build/typephp_ext_aes.so" -r "var_dump(class_exists('security\\EncryptionUtil'));"
+
+      - name: Upload Linux extension
+        uses: actions/upload-artifact@v4
+        with:
+          name: typephp-ext-aes-linux-x64
+          path: build/typephp_ext_aes.so
+          if-no-files-found: error
