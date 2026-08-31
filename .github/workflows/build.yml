@@ -16,8 +16,12 @@ concurrency:
 
 jobs:
   windows:
-    name: Windows x64 (.dll)
+    name: Windows x64 (.dll) (PHP ${{ matrix.php-version }})
     runs-on: windows-2022
+    strategy:
+      fail-fast: false
+      matrix:
+        php-version: ['8.5']
 
     steps:
       - name: Check out source
@@ -29,10 +33,10 @@ jobs:
           arch: x64
           toolset: '14.44'
 
-      - name: Install PHP 8.5 and Composer
+      - name: Install PHP ${{ matrix.php-version }} and Composer
         uses: shivammathur/setup-php@v2
         with:
-          php-version: '8.5'
+          php-version: ${{ matrix.php-version }}
           tools: composer:v2
           extensions: dom, openssl, mbstring, curl
         env:
@@ -82,7 +86,7 @@ jobs:
           Get-Command cl.exe | Format-List Source, Version
           Get-Command link.exe | Format-List Source, Version
           New-Item -ItemType Directory -Force -Path build | Out-Null
-          & "$env:TYPEPHP_HOME\tpc.exe" .\project.yml --no-progress --no-color
+          & "$env:TYPEPHP_HOME\tpc.exe" .\project.yml --php-version ${{ matrix.php-version }} --no-progress --no-color
           if (-not (Test-Path -LiteralPath 'build\typephp_ext_aes.dll')) { throw 'Expected DLL was not produced.' }
           Copy-Item "$env:TYPEPHP_HOME\phpx.dll" build\phpx.dll -Force
 
@@ -96,27 +100,31 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
-          Compress-Archive -Path build\typephp_ext_aes.dll, build\phpx.dll -DestinationPath typephp-ext-aes-windows-x64.zip -Force
+          Compress-Archive -Path build\typephp_ext_aes.dll, build\phpx.dll -DestinationPath "typephp-ext-aes-php${{ matrix.php-version }}-windows-x64.zip" -Force
 
       - name: Upload Windows extension artifact
         uses: actions/upload-artifact@v4
         with:
-          name: typephp-ext-aes-windows-x64
-          path: typephp-ext-aes-windows-x64.zip
+          name: "typephp-ext-aes-php${{ matrix.php-version }}-windows-x64"
+          path: "typephp-ext-aes-php${{ matrix.php-version }}-windows-x64.zip"
           if-no-files-found: error
 
   linux:
-    name: Linux x64 (.so)
+    name: Linux x64 (.so) (PHP ${{ matrix.php-version }})
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        php-version: ['8.5']
 
     steps:
       - name: Check out source
         uses: actions/checkout@v4
 
-      - name: Install PHP 8.5 and Composer
+      - name: Install PHP ${{ matrix.php-version }} and Composer
         uses: shivammathur/setup-php@v2
         with:
-          php-version: '8.5'
+          php-version: ${{ matrix.php-version }}
           tools: composer:v2
           extensions: dom, openssl, mbstring, curl
 
@@ -180,7 +188,7 @@ jobs:
           set -euxo pipefail
           mkdir -p build
           printf 'Compiler: '; vendor/bin/tpc.php --version
-          vendor/bin/tpc.php project.yml --no-progress --no-color
+          vendor/bin/tpc.php project.yml --php-version ${{ matrix.php-version }} --no-progress --no-color
           test -f build/typephp_ext_aes.so
           file build/typephp_ext_aes.so
 
@@ -198,13 +206,13 @@ jobs:
       - name: Package Linux extension
         shell: bash
         run: |
-          tar -czvf typephp-ext-aes-linux-x64.tar.gz -C build typephp_ext_aes.so libphpx.so
+          tar -czvf "typephp-ext-aes-php${{ matrix.php-version }}-linux-x64.tar.gz" -C build typephp_ext_aes.so libphpx.so
 
       - name: Upload Linux extension artifact
         uses: actions/upload-artifact@v4
         with:
-          name: typephp-ext-aes-linux-x64
-          path: typephp-ext-aes-linux-x64.tar.gz
+          name: "typephp-ext-aes-php${{ matrix.php-version }}-linux-x64"
+          path: "typephp-ext-aes-php${{ matrix.php-version }}-linux-x64.tar.gz"
           if-no-files-found: error
 
   release:
