@@ -135,6 +135,8 @@ jobs:
           set -euxo pipefail
           composer install --no-interaction --prefer-dist --no-progress
           test -f vendor/autoload.php
+          mkdir -p vendor/swoole/typephp/vendor
+          ln -sf "$GITHUB_WORKSPACE/vendor/autoload.php" vendor/swoole/typephp/vendor/autoload.php
 
       - name: Patch php_hash.h for C++ compatibility
         shell: bash
