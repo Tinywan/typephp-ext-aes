@@ -33,23 +33,23 @@ jobs:
           tools: composer:v2
           extensions: dom, openssl, mbstring, curl
 
-      - name: Install locked Composer dependencies
+      - name: Install dependencies
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
-          composer install --no-interaction --prefer-dist --no-progress
+          composer update swoole/typephp --no-interaction --prefer-dist --no-progress
           if (-not (Test-Path -LiteralPath 'vendor\autoload.php')) { throw 'Composer did not create vendor/autoload.php.' }
 
-      - name: Download the complete TypePHP 0.6.5 Windows SDK
+      - name: Download the complete TypePHP Windows SDK
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           $ErrorActionPreference = 'Stop'
           New-Item -ItemType Directory -Force -Path .typephp-download | Out-Null
-          gh release download v0.6.5 --repo swoole/typephp --pattern 'tpc_v0.6.5_windows_*.zip' --dir .typephp-download --clobber
+          gh release download --repo swoole/typephp --pattern 'tpc_*_windows_*.zip' --dir .typephp-download --clobber
           $archive = Get-ChildItem .typephp-download -Filter '*.zip' | Select-Object -First 1
-          if ($null -eq $archive) { throw 'TypePHP 0.6.5 Windows release archive was not downloaded.' }
+          if ($null -eq $archive) { throw 'TypePHP Windows release archive was not downloaded.' }
           Expand-Archive -LiteralPath $archive.FullName -DestinationPath .typephp-sdk -Force
           $sdk = Get-ChildItem .typephp-sdk -Directory | Select-Object -First 1
           if ($null -eq $sdk) { throw 'The TypePHP archive does not contain an SDK directory.' }
@@ -129,11 +129,11 @@ jobs:
           php --version
           php-config --version
 
-      - name: Install locked Composer dependencies
+      - name: Install dependencies
         shell: bash
         run: |
           set -euxo pipefail
-          composer install --no-interaction --prefer-dist --no-progress
+          composer update swoole/typephp --no-interaction --prefer-dist --no-progress
           test -f vendor/autoload.php
           mkdir -p vendor/swoole/typephp/vendor
           ln -sf "$GITHUB_WORKSPACE/vendor/autoload.php" vendor/swoole/typephp/vendor/autoload.php
@@ -173,7 +173,7 @@ jobs:
           printf 'PHP_HOME=%s\n' "$php_home" >> "$GITHUB_ENV"
           printf 'PHPX_HOME=%s/vendor/swoole/phpx\n' "$GITHUB_WORKSPACE" >> "$GITHUB_ENV"
 
-      - name: Build extension with TypePHP 0.6.5
+      - name: Build extension with TypePHP
         shell: bash
         run: |
           set -euxo pipefail
