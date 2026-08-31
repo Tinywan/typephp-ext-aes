@@ -39,6 +39,8 @@ jobs:
           php-version: ${{ matrix.php-version }}
           tools: composer:v2
           extensions: dom, openssl, mbstring, curl
+        env:
+          phpts: ts
 
       - name: Install dependencies
         shell: pwsh

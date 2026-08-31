@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 declare(strict_types=1);
 
 if (!extension_loaded('openssl')) {
@@ -6,7 +6,7 @@ if (!extension_loaded('openssl')) {
 }
 
 if (!class_exists('security\src\EncryptionUtil')) {
-    echo "[Error] Class security\\src\\EncryptionUtil not found!\n";
+    echo "[Error] Class security\src\EncryptionUtil not found!\n";
     exit(1);
 }
 
