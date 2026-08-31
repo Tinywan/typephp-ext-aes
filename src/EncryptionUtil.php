@@ -24,8 +24,8 @@ class EncryptionUtil
      */
     public static function encrypt(string $encryptText): string
     {
-        $encryptedBytes = openssl_encrypt($encryptText, self::ALGORITHM, self::KEY, OPENSSL_RAW_DATA);
-        return base64_encode($encryptedBytes);
+        $encryptedBytes = \openssl_encrypt($encryptText, self::ALGORITHM, self::KEY, \OPENSSL_RAW_DATA);
+        return \base64_encode($encryptedBytes);
     }
 
     /**
@@ -36,6 +36,6 @@ class EncryptionUtil
      */
     public static function decrypt(string $encryptedText): false|string
     {
-        return openssl_decrypt(base64_decode($encryptedText), self::ALGORITHM, self::KEY, OPENSSL_RAW_DATA);
+        return \openssl_decrypt(\base64_decode($encryptedText), self::ALGORITHM, self::KEY, \OPENSSL_RAW_DATA);
     }
 }

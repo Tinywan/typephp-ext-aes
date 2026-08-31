@@ -87,11 +87,18 @@ jobs:
           & "$env:TYPEPHP_HOME\tpc.exe" .\project.yml --php-version ${{ matrix.php-version }} --no-progress --no-color
           if (-not (Test-Path -LiteralPath 'build\typephp_ext_aes.dll')) { throw 'Expected DLL was not produced.' }
 
-      - name: Verify Windows extension can load
+      - name: Verify Windows extension can load and execute
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
-          & "$env:TYPEPHP_HOME\php.exe" -n -d "extension=$PWD\build\typephp_ext_aes.dll" -r "var_dump(class_exists('security\EncryptionUtil'));"
+          & "$env:TYPEPHP_HOME\php.exe" -n -d "extension=openssl" -d "extension=$PWD\build\typephp_ext_aes.dll" -r "
+            var_dump(class_exists('security\src\EncryptionUtil'));
+            `$raw = 'TypePHP AES Test OK';
+            `$encrypted = \security\src\EncryptionUtil::encrypt(`$raw);
+            `$decrypted = \security\src\EncryptionUtil::decrypt(`$encrypted);
+            if (`$raw -ne `$decrypted) { throw 'Encryption/Decryption mismatch!' }
+            echo 'Verification succeeded: ' . `$decrypted . PHP_EOL;
+          "
 
       - name: Package Windows extension
         shell: pwsh
@@ -189,11 +196,18 @@ jobs:
           test -f build/typephp_ext_aes.so
           file build/typephp_ext_aes.so
 
-      - name: Verify Linux extension can load
+      - name: Verify Linux extension can load and execute
         shell: bash
         run: |
           set -euxo pipefail
-          php -n -d "extension=$GITHUB_WORKSPACE/build/typephp_ext_aes.so" -r "var_dump(class_exists('security\\EncryptionUtil'));"
+          php -n -d "extension=openssl" -d "extension=$GITHUB_WORKSPACE/build/typephp_ext_aes.so" -r "
+            var_dump(class_exists('security\\src\\EncryptionUtil'));
+            \$raw = 'TypePHP AES Test OK';
+            \$encrypted = \security\src\EncryptionUtil::encrypt(\$raw);
+            \$decrypted = \security\src\EncryptionUtil::decrypt(\$encrypted);
+            if (\$raw !== \$decrypted) { exit(1); }
+            echo 'Verification succeeded: ' . \$decrypted . PHP_EOL;
+          "
 
       - name: Package Linux extension
         shell: bash
