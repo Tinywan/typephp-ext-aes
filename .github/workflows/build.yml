@@ -88,6 +88,7 @@ jobs:
           $env:Path = "$msvcBin;$env:TYPEPHP_HOME;$env:Path"
           Get-Command link.exe | Format-List Source, Version
           & link.exe /? | Out-Null
+          New-Item -ItemType Directory -Force -Path build | Out-Null
           & "$env:TYPEPHP_HOME\\tpc.exe" .\\project.yml --no-progress --no-color
           if (-not (Test-Path -LiteralPath 'build\\typephp_ext_aes.dll')) { throw 'Expected DLL was not produced.' }
 
@@ -177,6 +178,7 @@ jobs:
         shell: bash
         run: |
           set -euxo pipefail
+          mkdir -p build
           printf 'Compiler: '; vendor/bin/tpc.php --version
           vendor/bin/tpc.php project.yml --no-progress --no-color
           test -f build/typephp_ext_aes.so
