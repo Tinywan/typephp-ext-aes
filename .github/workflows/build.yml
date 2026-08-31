@@ -31,7 +31,14 @@ jobs:
         with:
           php-version: '8.5'
           tools: composer:v2
-          extensions: dom
+          extensions: dom, openssl, mbstring, curl
+
+      - name: Install locked Composer dependencies
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          composer install --no-interaction --prefer-dist --no-progress
+          if (-not (Test-Path -LiteralPath 'vendor\autoload.php')) { throw 'Composer did not create vendor/autoload.php.' }
 
       - name: Download the complete TypePHP 0.6.5 Windows SDK
         shell: pwsh
@@ -60,13 +67,6 @@ jobs:
             $required = Join-Path $sdk.FullName $_
             if (-not (Test-Path -LiteralPath $required)) { throw "Incomplete TypePHP SDK: missing $required" }
           }
-
-      - name: Install locked Composer dependencies
-        shell: pwsh
-        run: |
-          $ErrorActionPreference = 'Stop'
-          & "$env:TYPEPHP_HOME\\composer.bat" install --no-interaction --prefer-dist --no-progress
-          if (-not (Test-Path -LiteralPath 'vendor\\autoload.php')) { throw 'Composer did not create vendor/autoload.php.' }
 
       - name: Build extension with the TypePHP SDK
         shell: pwsh
@@ -117,7 +117,7 @@ jobs:
         with:
           php-version: '8.5'
           tools: composer:v2
-          extensions: dom
+          extensions: dom, openssl, mbstring, curl
 
       - name: Install native build prerequisites
         shell: bash
