@@ -91,14 +91,7 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
-          & "$env:TYPEPHP_HOME\php.exe" -n -d "extension=openssl" -d "extension=$PWD\build\typephp_ext_aes.dll" -r "
-            var_dump(class_exists('security\src\EncryptionUtil'));
-            `$raw = 'TypePHP AES Test OK';
-            `$encrypted = \security\src\EncryptionUtil::encrypt(`$raw);
-            `$decrypted = \security\src\EncryptionUtil::decrypt(`$encrypted);
-            if (`$raw -ne `$decrypted) { throw 'Encryption/Decryption mismatch!' }
-            echo 'Verification succeeded: ' . `$decrypted . PHP_EOL;
-          "
+          php -d "extension=build/typephp_ext_aes.dll" test-verify.php
 
       - name: Package Windows extension
         shell: pwsh
@@ -200,14 +193,7 @@ jobs:
         shell: bash
         run: |
           set -euxo pipefail
-          php -n -d "extension=openssl" -d "extension=$GITHUB_WORKSPACE/build/typephp_ext_aes.so" -r "
-            var_dump(class_exists('security\\src\\EncryptionUtil'));
-            \$raw = 'TypePHP AES Test OK';
-            \$encrypted = \security\src\EncryptionUtil::encrypt(\$raw);
-            \$decrypted = \security\src\EncryptionUtil::decrypt(\$encrypted);
-            if (\$raw !== \$decrypted) { exit(1); }
-            echo 'Verification succeeded: ' . \$decrypted . PHP_EOL;
-          "
+          php -d "extension=$GITHUB_WORKSPACE/build/typephp_ext_aes.so" test-verify.php
 
       - name: Package Linux extension
         shell: bash
