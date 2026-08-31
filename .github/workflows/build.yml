@@ -136,15 +136,35 @@ jobs:
           composer install --no-interaction --prefer-dist --no-progress
           test -f vendor/autoload.php
 
+      - name: Patch php_hash.h for C++ compatibility
+        shell: bash
+        run: |
+          PHP_INC="$(php-config --include-dir 2>/dev/null || echo '')"
+          echo "PHP include dir: $PHP_INC"
+          if [ -n "$PHP_INC" ]; then
+            sudo find "$PHP_INC" /usr/include -name "php_hash.h" -exec sed -i 's/static inline const php_hash_ops\* php_hash_fetch_ops/static inline const struct _php_hash_ops\* php_hash_fetch_ops/g' {} + 2>/dev/null || true
+          fi
+
       - name: Build PHPX for the selected PHP ABI
         shell: bash
         run: |
           set -euxo pipefail
           php_home="$(php-config --prefix)"
-          test -f "$php_home/include/php/main/php.h"
+          php_inc="$(php-config --include-dir)"
+          test -f "$php_inc/main/php.h"
+
+          EXTRA_INC=""
+          for d in /usr/include /usr/local/include /usr/include/x86_64-linux-gnu; do
+              [ -d "$d" ] && EXTRA_INC="$EXTRA_INC -I$d"
+          done
+
           cmake -S vendor/swoole/phpx -B .typephp/phpx-build \
             -DCMAKE_BUILD_TYPE=Release \
             -Dphp_dir="$php_home" \
+            -DBUILD_TESTS=OFF \
+            -DBUILD_EXT=OFF \
+            -DCMAKE_CXX_FLAGS="$EXTRA_INC" \
+            -DCMAKE_C_FLAGS="$EXTRA_INC" \
             -DCMAKE_LIBRARY_OUTPUT_DIRECTORY="$GITHUB_WORKSPACE/vendor/swoole/phpx/lib"
           cmake --build .typephp/phpx-build --target phpx --parallel 2
           test -f vendor/swoole/phpx/lib/libphpx.so
