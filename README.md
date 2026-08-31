@@ -169,6 +169,36 @@ class EncryptionUtil
 - **环境对齐**：Windows 严格锁定 MSVC 14.44 工具链与 Thread-Safe PHP ABI；
 - **自动化 Release**：推送版本 Tag（如 `v*`）时，自动打包制品并创建 GitHub Release。
 
+## ❓ 常见问题与排错指南 (FAQ)
+
+### 1. Windows 下报 `Unable to load dynamic library ... (找不到指定的模块)`
+- **原因 1：扩展名后缀写错为 `.so`**  
+  在 Windows 的 `php.ini` 中，不能包含 Linux 的 `.so` 后缀。  
+  ❌ 错误写法：`extension=typephp_ext_aes.so`  
+  ✅ 正确写法：`extension=typephp_ext_aes` 或 `extension=typephp_ext_aes.dll`
+- **原因 2：`extension_dir` 扩展目录未正确配置**  
+  检查 `php.ini` 中的 `extension_dir` 是否指向当前 `ext` 目录（例如 `extension_dir = "ext"`），并确认 `typephp_ext_aes.dll` 以及 `phpx.dll` 均存放在该目录下。
+
+### 2. 报 `Cannot load module "typephp_typephp_ext_aes" because required module "openssl" is not loaded`
+- **原因**：本扩展底层调用了 PHP 的 `openssl` 扩展加解密 API。
+- **解决方法**：在 `php.ini` 中必须同时开启 `extension=openssl`。如果使用命令行 `-d` 参数，需同时指定 `-d extension=openssl`。
+
+### 3. Windows 终端输出中文乱码（如显示成 `鎵句笉鍒版寚瀹氱殑妯″潡`）
+- **原因**：Windows 控制台默认代码页为 GBK (936)，而 PHP 8.4+ 默认以 UTF-8 输出。
+- **解决方法**：在 PowerShell / CMD 中先执行以下命令切换为 UTF-8 编码：
+  ```powershell
+  chcp 65001
+  [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+  ```
+
+### 4. Linux 下报 `libphpx.so: cannot open shared object file: No such file or directory`
+- **原因**：动态链接器未找到 `libphpx.so` 共享库。
+- **解决方法**：Release 发布包中已内置 `libphpx.so` 并配置了 `$ORIGIN` 搜索路径，请确保将 `libphpx.so` 与 `typephp_ext_aes.so` 放置在同一个目录下，或者配置 `LD_LIBRARY_PATH` 环境变量。
+
+### 5. Windows 下报 `Can't load module as it's linked with 14.xx, but the core is linked with 14.yy`
+- **原因**：扩展编译时使用的 MSVC 编译器版本与 PHP 核心（`php.exe`）编译版本不匹配（Zend 构建校验机制）。
+- **解决方法**：请使用项目 Release 中发布的预编译包，或在本地编译时使用与 PHP 官方一致的 **Visual Studio 2022 (MSVC 14.44)** 工具链。
+
 ---
 
 ## 📄 License
